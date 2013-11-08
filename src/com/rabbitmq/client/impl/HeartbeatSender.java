@@ -22,6 +22,7 @@ import com.rabbitmq.client.AMQP;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ScheduledFuture;
 import java.io.IOException;
@@ -86,7 +87,16 @@ final class HeartbeatSender {
     private ScheduledExecutorService createExecutorIfNecessary() {
         synchronized (this.monitor) {
             if (this.executor == null) {
-                this.executor = Executors.newSingleThreadScheduledExecutor();
+                // This caused a non-daemon thread to be left running! -rstewart@shopwiki.com
+                //this.executor = Executors.newSingleThreadScheduledExecutor();
+                this.executor = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
+                    @Override
+                    public Thread newThread(Runnable r) {
+                        Thread t = new Thread(r, "RabbitMQ-HeartbeatSender");
+                        t.setDaemon(true); // Might not be necessary -rstewart@shopwiki.com
+                        return t;
+                    }
+                });
             }
             return this.executor;
         }
